@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=6" />
+  <link rel="stylesheet" href="/style.css?v=7" />
 </head>
 <body>
   <header class="topbar">
@@ -84,16 +84,18 @@
 
   <!-- CALENDARIO -->
   <section id="view-calendar" class="view hidden">
-    <div class="cal-head">
-      <button id="prevMonth" class="nav-arrow" aria-label="Mese precedente">‹</button>
-      <h2 id="monthLabel"></h2>
-      <button id="nextMonth" class="nav-arrow" aria-label="Mese successivo">›</button>
+    <div class="cal-card">
+      <div class="cal-head">
+        <button id="prevMonth" class="nav-arrow" aria-label="Mese precedente">‹</button>
+        <h2 id="monthLabel"></h2>
+        <button id="nextMonth" class="nav-arrow" aria-label="Mese successivo">›</button>
+      </div>
+      <div class="cal-weekdays">
+        <span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span>
+      </div>
+      <div id="calGrid" class="cal-grid"></div>
     </div>
-    <div class="cal-weekdays">
-      <span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span>
-    </div>
-    <div id="calGrid" class="cal-grid"></div>
-    <div id="dayPanel" class="day-panel hidden"></div>
+    <div id="dayPanel" class="day-panel"></div>
   </section>
 
   <!-- FOTO -->
@@ -154,9 +156,6 @@
     <p id="reasonsEmpty" class="empty hidden">Ancora nessun motivo scritto.</p>
   </section>
 
-  <!-- Backdrop per la sheet mobile -->
-  <div id="sheetBackdrop" class="sheet-backdrop hidden"></div>
-
   <!-- Lightbox -->
   <div id="lightbox" class="lightbox hidden">
     <button class="lightbox-close" aria-label="Chiudi">×</button>
@@ -191,6 +190,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=6"></script>
+  <script src="/app.js?v=7"></script>
 </body>
 </html>

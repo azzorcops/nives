@@ -1,6 +1,7 @@
 'use strict';
 
 const MONTHS = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+const WEEKDAYS = ['domenica','lunedì','martedì','mercoledì','giovedì','venerdì','sabato'];
 const CATEGORIES = [
   { label: 'Anniversario', color: '#cf4d73' },
   { label: 'Cena',         color: '#e07a3f' },
@@ -30,6 +31,8 @@ function todayYmd() { return ymd(new Date()); }
 function parseYmd(s) { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
 function daysBetween(a, b) { return Math.round((b - a) / 86400000); }
 function prettyDate(s) { if (!s) return ''; const d = parseYmd(s); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(); }
+
+selectedDate = todayYmd();
 
 // ---------- config / tabs / logout ----------
 fetch('/api/config').then(r => r.json()).then(c => {
@@ -138,10 +141,16 @@ function showRandomReason() {
 }
 document.getElementById('shuffleReason').addEventListener('click', showRandomReason);
 
-// ---------- CALENDARIO ----------
+// ============================================================
+//  CALENDARIO
+// ============================================================
 async function loadEvents() {
   events = await fetch('/api/events').then(r => r.json());
+  // parti sul mese del giorno selezionato
+  const sd = parseYmd(selectedDate);
+  current = new Date(sd.getFullYear(), sd.getMonth(), 1);
   renderCalendar();
+  renderAgenda();
 }
 function eventsOn(dateStr) { return events.filter(e => e.date === dateStr).sort((a,b)=> ((a.category||'')<(b.category||'')?-1:1)); }
 
@@ -160,42 +169,42 @@ function renderCalendar() {
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = y + '-' + String(m+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     const list = eventsOn(dateStr);
-    const cell = document.createElement('div');
+    const cell = document.createElement('button');
+    cell.type = 'button';
     cell.className = 'cell';
     if (dateStr === today) cell.classList.add('today');
     if (dateStr === selectedDate) cell.classList.add('selected');
 
     const num = document.createElement('span'); num.className = 'daynum'; num.textContent = d; cell.appendChild(num);
 
-    if (list.length) {
-      const dots = document.createElement('div'); dots.className = 'dots';
-      list.slice(0, 3).forEach(e => {
-        const dot = document.createElement('span'); dot.className = 'dot';
-        dot.style.background = catColor(e.category);
-        dots.appendChild(dot);
-      });
-      if (list.length > 3) { const more = document.createElement('span'); more.className = 'more'; more.textContent = '+' + (list.length - 3); dots.appendChild(more); }
-      cell.appendChild(dots);
-    }
-    cell.addEventListener('click', () => openDay(dateStr));
+    const dots = document.createElement('div'); dots.className = 'dots';
+    list.slice(0, 4).forEach(e => {
+      const dot = document.createElement('span'); dot.className = 'dot';
+      dot.style.background = catColor(e.category);
+      dots.appendChild(dot);
+    });
+    cell.appendChild(dots);
+
+    cell.addEventListener('click', () => selectDay(dateStr));
     grid.appendChild(cell);
   }
 }
 
-function openDay(dateStr) {
+function selectDay(dateStr) {
   selectedDate = dateStr;
   renderCalendar();
-  const panel = document.getElementById('dayPanel');
-  const d = parseYmd(dateStr);
-  const list = eventsOn(dateStr);
-  const weekday = ['domenica','lunedì','martedì','mercoledì','giovedì','venerdì','sabato'][d.getDay()];
+  renderAgenda();
+  if (isMobile()) document.getElementById('dayPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 
-  let html =
-    '<div class="dp-handle" aria-hidden="true"></div>' +
-    '<div class="dp-head">' +
-      '<h3>' + weekday + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()] + '</h3>' +
-      '<button class="dp-close" aria-label="Chiudi">×</button>' +
-    '</div>';
+function renderAgenda() {
+  const panel = document.getElementById('dayPanel');
+  const d = parseYmd(selectedDate);
+  const list = eventsOn(selectedDate);
+  const isToday = selectedDate === todayYmd();
+
+  let html = '<div class="dp-head"><h3>' + WEEKDAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()] + '</h3>' +
+    (isToday ? '<span class="dp-today">oggi</span>' : '') + '</div>';
 
   if (list.length) {
     html += '<div class="dp-events">' + list.map(e =>
@@ -207,31 +216,26 @@ function openDay(dateStr) {
         '<button class="del" title="Elimina">×</button></div>'
     ).join('') + '</div>';
   } else {
-    html += '<p class="muted dp-empty">Niente in programma. Aggiungete qualcosa.</p>';
+    html += '<p class="muted dp-empty">Nessun evento in questo giorno.</p>';
   }
 
   html += '<form class="event-form">' +
-    '<input type="text" class="ev-title" placeholder="cosa?" required />' +
-    '<select class="ev-cat"><option value="">categoria (facoltativa)</option>' +
-      CATEGORIES.map(c => '<option value="' + esc(c.label) + '">' + esc(c.label) + '</option>').join('') +
-    '</select>' +
-    '<input type="text" class="ev-note-in" placeholder="una nota (opzionale)" />' +
+    '<input type="text" class="ev-title" placeholder="Aggiungi un evento…" required />' +
+    '<div class="event-form-row">' +
+      '<select class="ev-cat"><option value="">categoria</option>' +
+        CATEGORIES.map(c => '<option value="' + esc(c.label) + '">' + esc(c.label) + '</option>').join('') +
+      '</select>' +
+      '<input type="text" class="ev-note-in" placeholder="nota (opzionale)" />' +
+    '</div>' +
     '<button type="submit" class="btn">Aggiungi</button></form>';
 
   panel.innerHTML = html;
-  panel.classList.remove('hidden');
-  if (isMobile()) {
-    document.getElementById('sheetBackdrop').classList.remove('hidden');
-    document.body.classList.add('sheet-open');
-  } else {
-    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
 
-  panel.querySelector('.dp-close').addEventListener('click', closeDay);
   panel.querySelectorAll('.del').forEach(btn => btn.addEventListener('click', async (e) => {
     const id = e.target.closest('.event-item').dataset.id;
     await fetch('/api/events/' + id, { method: 'DELETE' });
-    await loadEvents(); openDay(dateStr);
+    events = await fetch('/api/events').then(r => r.json());
+    renderCalendar(); renderAgenda();
   }));
   panel.querySelector('.event-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -239,23 +243,32 @@ function openDay(dateStr) {
     if (!title) return;
     await fetch('/api/events', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: dateStr, title, category: panel.querySelector('.ev-cat').value, note: panel.querySelector('.ev-note-in').value.trim() }),
+      body: JSON.stringify({ date: selectedDate, title, category: panel.querySelector('.ev-cat').value, note: panel.querySelector('.ev-note-in').value.trim() }),
     });
-    await loadEvents(); openDay(dateStr);
+    events = await fetch('/api/events').then(r => r.json());
+    renderCalendar(); renderAgenda();
   });
 }
 
-function closeDay() {
-  document.getElementById('dayPanel').classList.add('hidden');
-  document.getElementById('sheetBackdrop').classList.add('hidden');
-  document.body.classList.remove('sheet-open');
-  selectedDate = null;
-  renderCalendar();
-}
-document.getElementById('sheetBackdrop').addEventListener('click', closeDay);
-
 document.getElementById('prevMonth').addEventListener('click', () => { current.setMonth(current.getMonth()-1); renderCalendar(); });
 document.getElementById('nextMonth').addEventListener('click', () => { current.setMonth(current.getMonth()+1); renderCalendar(); });
+
+// swipe tra i mesi
+(function () {
+  const grid = document.getElementById('calGrid');
+  let x0 = null, y0 = null;
+  grid.addEventListener('touchstart', (e) => { x0 = e.changedTouches[0].clientX; y0 = e.changedTouches[0].clientY; }, { passive: true });
+  grid.addEventListener('touchend', (e) => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    const dy = e.changedTouches[0].clientY - y0;
+    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      current.setMonth(current.getMonth() + (dx < 0 ? 1 : -1));
+      renderCalendar();
+    }
+    x0 = y0 = null;
+  }, { passive: true });
+})();
 
 // ---------- FOTO ----------
 async function loadPhotos() {
@@ -393,7 +406,7 @@ function closeLightbox() {
 }
 document.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
 document.getElementById('lightbox').addEventListener('click', (e) => { if (e.target.id === 'lightbox') closeLightbox(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeLightbox(); closeSettings(); closeDay(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeLightbox(); closeSettings(); } });
 
 // ---------- Impostazioni ----------
 const settingsModal = document.getElementById('settingsModal');
