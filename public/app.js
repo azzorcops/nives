@@ -1,12 +1,23 @@
 'use strict';
 
 const MONTHS = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
-const CATEGORIES = ['💗 Anniversario','🍝 Cena','✈️ Viaggio','🎬 Serata','🎁 Regalo','🎂 Compleanno','⭐ Altro'];
+const CATEGORIES = [
+  { label: 'Anniversario', color: '#cf4d73' },
+  { label: 'Cena',         color: '#e07a3f' },
+  { label: 'Viaggio',      color: '#3a9bb5' },
+  { label: 'Serata',       color: '#8a5cc4' },
+  { label: 'Regalo',       color: '#d99b4e' },
+  { label: 'Compleanno',   color: '#e85f8f' },
+  { label: 'Altro',        color: '#a97c8d' },
+];
+function catColor(c) { const f = CATEGORIES.find(x => x.label === c); return f ? f.color : '#c78aa0'; }
 
 let settings = { anniversary: '', reunion: '', name1: '', name2: '' };
 let events = [];
 let reasonsCache = [];
 let current = new Date(); current.setDate(1);
+let selectedDate = null;
+const isMobile = () => window.matchMedia('(max-width: 640px)').matches;
 
 // ---------- util ----------
 function esc(s) {
@@ -18,23 +29,7 @@ function ymd(d) {
 function todayYmd() { return ymd(new Date()); }
 function parseYmd(s) { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
 function daysBetween(a, b) { return Math.round((b - a) / 86400000); }
-function prettyDate(s) {
-  if (!s) return '';
-  const d = parseYmd(s);
-  return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
-}
-function heartsInto(el, n) {
-  for (let i = 0; i < n; i++) {
-    const h = document.createElement('span');
-    h.className = 'floaty'; h.textContent = '♥';
-    h.style.left = Math.random()*100 + '%';
-    h.style.animationDuration = (7 + Math.random()*8) + 's';
-    h.style.animationDelay = (Math.random()*8) + 's';
-    h.style.fontSize = (10 + Math.random()*20) + 'px';
-    h.style.opacity = (0.12 + Math.random()*0.25).toFixed(2);
-    el.appendChild(h);
-  }
-}
+function prettyDate(s) { if (!s) return ''; const d = parseYmd(s); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(); }
 
 // ---------- config / tabs / logout ----------
 fetch('/api/config').then(r => r.json()).then(c => {
@@ -56,17 +51,15 @@ document.querySelectorAll('.tab').forEach(tab => {
     const view = tab.dataset.view;
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     document.getElementById('view-' + view).classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     if (loaders[view]) loaders[view]();
   });
 });
 
 // ---------- HOME ----------
-heartsInto(document.querySelector('.hero-hearts'), 12);
-
 async function loadHome() {
   settings = await fetch('/api/settings').then(r => r.json());
 
-  // contatore "insieme da"
   const daysEl = document.getElementById('togetherDays');
   const detailEl = document.getElementById('togetherDetail');
   const annNote = document.getElementById('anniversaryNote');
@@ -75,30 +68,26 @@ async function loadHome() {
     const today = parseYmd(todayYmd());
     const days = Math.max(0, daysBetween(start, today));
     daysEl.textContent = days.toLocaleString('it-IT');
-    daysEl.nextSibling;
     detailEl.textContent = days === 1 ? 'giorno' : 'giorni';
     annNote.textContent = breakdown(start, today) + ' • dal ' + prettyDate(settings.anniversary);
   } else {
-    daysEl.textContent = '♥';
+    daysEl.textContent = '—';
     detailEl.textContent = '';
-    annNote.innerHTML = 'Imposta la vostra data in <b>⚙ Impostazioni</b> per vedere il contatore.';
+    annNote.innerHTML = 'Imposta la vostra data nelle <b>Impostazioni</b> per vedere il contatore.';
   }
 
-  // ci rivediamo
   const cardR = document.getElementById('cardReunion');
   if (settings.reunion) {
     const today = parseYmd(todayYmd());
     const rd = parseYmd(settings.reunion);
     const diff = daysBetween(today, rd);
-    cardR.style.display = '';
-    const num = document.getElementById('reunionDays');
-    const lbl = document.getElementById('reunionDate');
-    if (diff > 0) { num.textContent = diff; lbl.textContent = (diff === 1 ? 'giorno' : 'giorni') + ' • ' + prettyDate(settings.reunion); }
-    else if (diff === 0) { num.textContent = 'Oggi!'; lbl.textContent = '♥'; }
-    else { cardR.style.display = 'none'; }
-  } else { cardR.style.display = 'none'; }
+    if (diff >= 0) {
+      cardR.style.display = '';
+      document.getElementById('reunionDays').textContent = diff === 0 ? 'Oggi' : diff;
+      document.getElementById('reunionDate').textContent = diff === 0 ? 'vi rivedete oggi' : (diff === 1 ? 'giorno' : 'giorni') + ' • ' + prettyDate(settings.reunion);
+    } else cardR.style.display = 'none';
+  } else cardR.style.display = 'none';
 
-  // prossimo momento
   events = await fetch('/api/events').then(r => r.json());
   const t = todayYmd();
   const next = events.filter(e => e.date >= t).sort((a,b) => a.date < b.date ? -1 : 1)[0];
@@ -107,18 +96,17 @@ async function loadHome() {
     const diff = daysBetween(parseYmd(t), parseYmd(next.date));
     const when = diff === 0 ? 'oggi' : diff === 1 ? 'domani' : 'tra ' + diff + ' giorni';
     ne.innerHTML =
-      '<div class="ne-title">' + esc((next.category ? next.category + ' ' : '') + next.title) + '</div>' +
+      '<div class="ne-title">' + esc(next.title) + '</div>' +
+      (next.category ? '<div class="ne-cat" style="color:' + catColor(next.category) + '">' + esc(next.category) + '</div>' : '') +
       '<div class="ne-when">' + when + ' — ' + prettyDate(next.date) + '</div>' +
       (next.note ? '<div class="ne-note">' + esc(next.note) + '</div>' : '');
   } else {
-    ne.innerHTML = '<p class="muted">Niente in programma. Aggiungete qualcosa dal calendario. ♥</p>';
+    ne.innerHTML = '<p class="muted">Niente in programma. Aggiungete qualcosa dal calendario.</p>';
   }
 
-  // motivo a caso
   reasonsCache = await fetch('/api/reasons').then(r => r.json());
   showRandomReason();
 
-  // ultima foto
   const photos = await fetch('/api/photos').then(r => r.json());
   const cardP = document.getElementById('cardLastPhoto');
   if (photos.length) {
@@ -126,7 +114,7 @@ async function loadHome() {
     const img = document.getElementById('lastPhoto');
     img.src = '/media/' + photos[0].file;
     img.onclick = () => openLightbox('/media/' + photos[0].file, photos[0].caption);
-  } else { cardP.style.display = 'none'; }
+  } else cardP.style.display = 'none';
 }
 
 function breakdown(start, end) {
@@ -139,12 +127,12 @@ function breakdown(start, end) {
   if (y) parts.push(y + (y === 1 ? ' anno' : ' anni'));
   if (m) parts.push(m + (m === 1 ? ' mese' : ' mesi'));
   if (d) parts.push(d + (d === 1 ? ' giorno' : ' giorni'));
-  return parts.join(', ') || 'oggi ♥';
+  return parts.join(', ') || 'oggi';
 }
 
 function showRandomReason() {
   const el = document.getElementById('randomReason');
-  if (!reasonsCache.length) { el.textContent = 'Aggiungine uno nella sezione Motivi ♥'; return; }
+  if (!reasonsCache.length) { el.textContent = 'Aggiungine uno nella sezione Motivi.'; return; }
   const r = reasonsCache[Math.floor(Math.random()*reasonsCache.length)];
   el.textContent = '“' + r.text + '”';
 }
@@ -155,7 +143,7 @@ async function loadEvents() {
   events = await fetch('/api/events').then(r => r.json());
   renderCalendar();
 }
-function eventsOn(dateStr) { return events.filter(e => e.date === dateStr); }
+function eventsOn(dateStr) { return events.filter(e => e.date === dateStr).sort((a,b)=> ((a.category||'')<(b.category||'')?-1:1)); }
 
 function renderCalendar() {
   const y = current.getFullYear(), m = current.getMonth();
@@ -175,10 +163,18 @@ function renderCalendar() {
     const cell = document.createElement('div');
     cell.className = 'cell';
     if (dateStr === today) cell.classList.add('today');
+    if (dateStr === selectedDate) cell.classList.add('selected');
+
     const num = document.createElement('span'); num.className = 'daynum'; num.textContent = d; cell.appendChild(num);
+
     if (list.length) {
       const dots = document.createElement('div'); dots.className = 'dots';
-      for (let k = 0; k < Math.min(list.length, 3); k++) { const dot = document.createElement('span'); dot.className = 'dot'; dots.appendChild(dot); }
+      list.slice(0, 3).forEach(e => {
+        const dot = document.createElement('span'); dot.className = 'dot';
+        dot.style.background = catColor(e.category);
+        dots.appendChild(dot);
+      });
+      if (list.length > 3) { const more = document.createElement('span'); more.className = 'more'; more.textContent = '+' + (list.length - 3); dots.appendChild(more); }
       cell.appendChild(dots);
     }
     cell.addEventListener('click', () => openDay(dateStr));
@@ -187,31 +183,51 @@ function renderCalendar() {
 }
 
 function openDay(dateStr) {
+  selectedDate = dateStr;
+  renderCalendar();
   const panel = document.getElementById('dayPanel');
   const d = parseYmd(dateStr);
   const list = eventsOn(dateStr);
-  let html = '<h3>' + d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear() + '</h3>';
+  const weekday = ['domenica','lunedì','martedì','mercoledì','giovedì','venerdì','sabato'][d.getDay()];
+
+  let html =
+    '<div class="dp-handle" aria-hidden="true"></div>' +
+    '<div class="dp-head">' +
+      '<h3>' + weekday + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()] + '</h3>' +
+      '<button class="dp-close" aria-label="Chiudi">×</button>' +
+    '</div>';
+
   if (list.length) {
-    html += list.map(e =>
+    html += '<div class="dp-events">' + list.map(e =>
       '<div class="event-item" data-id="' + e.id + '">' +
-        '<div class="txt"><strong>' + esc((e.category ? e.category + ' ' : '') + e.title) + '</strong>' +
-          (e.note ? '<span>' + esc(e.note) + '</span>' : '') + '</div>' +
+        '<span class="ev-bar" style="background:' + catColor(e.category) + '"></span>' +
+        '<div class="txt"><strong>' + esc(e.title) + '</strong>' +
+          (e.category ? '<span class="ev-cat-tag" style="color:' + catColor(e.category) + '">' + esc(e.category) + '</span>' : '') +
+          (e.note ? '<span class="ev-note">' + esc(e.note) + '</span>' : '') + '</div>' +
         '<button class="del" title="Elimina">×</button></div>'
-    ).join('');
+    ).join('') + '</div>';
   } else {
-    html += '<p class="muted" style="margin:0 0 4px">Niente qui. Aggiungete qualcosa. ♥</p>';
+    html += '<p class="muted dp-empty">Niente in programma. Aggiungete qualcosa.</p>';
   }
+
   html += '<form class="event-form">' +
     '<input type="text" class="ev-title" placeholder="cosa?" required />' +
     '<select class="ev-cat"><option value="">categoria (facoltativa)</option>' +
-      CATEGORIES.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('') +
+      CATEGORIES.map(c => '<option value="' + esc(c.label) + '">' + esc(c.label) + '</option>').join('') +
     '</select>' +
-    '<input type="text" class="ev-note" placeholder="una nota (opzionale)" />' +
+    '<input type="text" class="ev-note-in" placeholder="una nota (opzionale)" />' +
     '<button type="submit" class="btn">Aggiungi</button></form>';
+
   panel.innerHTML = html;
   panel.classList.remove('hidden');
-  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (isMobile()) {
+    document.getElementById('sheetBackdrop').classList.remove('hidden');
+    document.body.classList.add('sheet-open');
+  } else {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 
+  panel.querySelector('.dp-close').addEventListener('click', closeDay);
   panel.querySelectorAll('.del').forEach(btn => btn.addEventListener('click', async (e) => {
     const id = e.target.closest('.event-item').dataset.id;
     await fetch('/api/events/' + id, { method: 'DELETE' });
@@ -223,11 +239,20 @@ function openDay(dateStr) {
     if (!title) return;
     await fetch('/api/events', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: dateStr, title, category: panel.querySelector('.ev-cat').value, note: panel.querySelector('.ev-note').value.trim() }),
+      body: JSON.stringify({ date: dateStr, title, category: panel.querySelector('.ev-cat').value, note: panel.querySelector('.ev-note-in').value.trim() }),
     });
     await loadEvents(); openDay(dateStr);
   });
 }
+
+function closeDay() {
+  document.getElementById('dayPanel').classList.add('hidden');
+  document.getElementById('sheetBackdrop').classList.add('hidden');
+  document.body.classList.remove('sheet-open');
+  selectedDate = null;
+  renderCalendar();
+}
+document.getElementById('sheetBackdrop').addEventListener('click', closeDay);
 
 document.getElementById('prevMonth').addEventListener('click', () => { current.setMonth(current.getMonth()-1); renderCalendar(); });
 document.getElementById('nextMonth').addEventListener('click', () => { current.setMonth(current.getMonth()+1); renderCalendar(); });
@@ -265,7 +290,7 @@ document.getElementById('photoInput').addEventListener('change', async (e) => {
   fd.append('date', document.getElementById('photoDate').value);
   const res = await fetch('/api/photos', { method: 'POST', body: fd });
   if (res.ok) {
-    status.textContent = 'Fatto ♥';
+    status.textContent = 'Caricata';
     document.getElementById('caption').value = ''; document.getElementById('photoDate').value = ''; e.target.value = '';
     loadPhotos(); setTimeout(() => status.textContent = '', 2000);
   } else {
@@ -283,7 +308,7 @@ async function loadNotes() {
     return '<div class="note" data-id="' + n.id + '">' +
       '<button class="del-btn" title="Elimina">×</button>' +
       '<div class="note-text">' + esc(n.text) + '</div>' +
-      '<div class="note-meta"><span class="who">' + (n.author ? esc(n.author) : '♥') + '</span><span>' + when + '</span></div>' +
+      '<div class="note-meta"><span class="who">' + (n.author ? esc(n.author) : '·') + '</span><span>' + when + '</span></div>' +
     '</div>';
   }).join('');
   wall.querySelectorAll('.del-btn').forEach(b => b.addEventListener('click', async (e) => {
@@ -368,7 +393,7 @@ function closeLightbox() {
 }
 document.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
 document.getElementById('lightbox').addEventListener('click', (e) => { if (e.target.id === 'lightbox') closeLightbox(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeLightbox(); closeSettings(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeLightbox(); closeSettings(); closeDay(); } });
 
 // ---------- Impostazioni ----------
 const settingsModal = document.getElementById('settingsModal');
@@ -392,7 +417,7 @@ document.getElementById('saveSettings').addEventListener('click', async () => {
   };
   const res = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (res.ok) {
-    document.getElementById('settingsStatus').textContent = 'Salvato ♥';
+    document.getElementById('settingsStatus').textContent = 'Salvato';
     setTimeout(() => { document.getElementById('settingsStatus').textContent = ''; closeSettings(); loadHome(); }, 800);
   }
 });
