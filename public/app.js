@@ -12,54 +12,51 @@ const CATEGORIES = [
   { label: 'Altro',        color: '#a97c8d' },
 ];
 function catColor(c) { const f = CATEGORIES.find(x => x.label === c); return f ? f.color : '#c78aa0'; }
+const PLACE_COLORS = { been: '#cf4d73', wish: '#3a9bb5' };
 
 let settings = { anniversary: '', reunion: '', name1: '', name2: '' };
 let events = [];
 let reasonsCache = [];
+let ideasCache = [];
 let current = new Date(); current.setDate(1);
 let selectedDate = null;
 const isMobile = () => window.matchMedia('(max-width: 640px)').matches;
 
 // ---------- util ----------
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-}
-function ymd(d) {
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-}
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+function ymd(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 function todayYmd() { return ymd(new Date()); }
 function parseYmd(s) { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
 function daysBetween(a, b) { return Math.round((b - a) / 86400000); }
 function prettyDate(s) { if (!s) return ''; const d = parseYmd(s); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(); }
+function dayWord(n) { return n === 1 ? 'giorno' : 'giorni'; }
 
 selectedDate = todayYmd();
 
-// ---------- config / tabs / logout ----------
-fetch('/api/config').then(r => r.json()).then(c => {
-  if (c.coupleName) document.getElementById('coupleName').textContent = c.coupleName;
-});
-document.getElementById('logout').addEventListener('click', async () => {
-  await fetch('/api/logout', { method: 'POST' });
-  window.location.href = '/';
-});
+// ---------- config / logout ----------
+fetch('/api/config').then(r => r.json()).then(c => { if (c.coupleName) document.getElementById('coupleName').textContent = c.coupleName; });
+document.getElementById('logout').addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); window.location.href = '/'; });
 
-const loaders = {
-  home: loadHome, calendar: loadEvents, photos: loadPhotos,
-  notes: loadNotes, wishes: loadWishes, reasons: loadReasons,
-};
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('is-active'));
-    tab.classList.add('is-active');
-    const view = tab.dataset.view;
-    document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-    document.getElementById('view-' + view).classList.remove('hidden');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (loaders[view]) loaders[view]();
-  });
-});
+// ---------- navigazione ----------
+const SECONDARY = ['notes','wishes','idee','capsule','reasons'];
+const LOADERS = { home: loadHome, calendar: loadEvents, mappa: loadPlaces, photos: loadPhotos, notes: loadNotes, wishes: loadWishes, idee: loadIdeas, capsule: loadCapsules, reasons: loadReasons };
+function navTo(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  const view = document.getElementById('view-' + name);
+  if (view) view.classList.remove('hidden');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('is-active'));
+  const tab = document.querySelector('.tab[data-view="' + name + '"]');
+  if (tab) tab.classList.add('is-active');
+  if (SECONDARY.includes(name)) { const more = document.querySelector('.tab[data-view="altro"]'); if (more) more.classList.add('is-active'); }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (LOADERS[name]) LOADERS[name]();
+}
+document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => navTo(tab.dataset.view)));
+document.querySelectorAll('.menu-card').forEach(card => card.addEventListener('click', () => navTo(card.dataset.target)));
 
-// ---------- HOME ----------
+// ============================================================
+//  HOME
+// ============================================================
 async function loadHome() {
   settings = await fetch('/api/settings').then(r => r.json());
 
@@ -71,25 +68,12 @@ async function loadHome() {
     const today = parseYmd(todayYmd());
     const days = Math.max(0, daysBetween(start, today));
     daysEl.textContent = days.toLocaleString('it-IT');
-    detailEl.textContent = days === 1 ? 'giorno' : 'giorni';
+    detailEl.textContent = dayWord(days);
     annNote.textContent = breakdown(start, today) + ' • dal ' + prettyDate(settings.anniversary);
   } else {
-    daysEl.textContent = '—';
-    detailEl.textContent = '';
+    daysEl.textContent = '—'; detailEl.textContent = '';
     annNote.innerHTML = 'Imposta la vostra data nelle <b>Impostazioni</b> per vedere il contatore.';
   }
-
-  const cardR = document.getElementById('cardReunion');
-  if (settings.reunion) {
-    const today = parseYmd(todayYmd());
-    const rd = parseYmd(settings.reunion);
-    const diff = daysBetween(today, rd);
-    if (diff >= 0) {
-      cardR.style.display = '';
-      document.getElementById('reunionDays').textContent = diff === 0 ? 'Oggi' : diff;
-      document.getElementById('reunionDate').textContent = diff === 0 ? 'vi rivedete oggi' : (diff === 1 ? 'giorno' : 'giorni') + ' • ' + prettyDate(settings.reunion);
-    } else cardR.style.display = 'none';
-  } else cardR.style.display = 'none';
 
   events = await fetch('/api/events').then(r => r.json());
   const t = todayYmd();
@@ -98,14 +82,11 @@ async function loadHome() {
   if (next) {
     const diff = daysBetween(parseYmd(t), parseYmd(next.date));
     const when = diff === 0 ? 'oggi' : diff === 1 ? 'domani' : 'tra ' + diff + ' giorni';
-    ne.innerHTML =
-      '<div class="ne-title">' + esc(next.title) + '</div>' +
+    ne.innerHTML = '<div class="ne-title">' + esc(next.title) + '</div>' +
       (next.category ? '<div class="ne-cat" style="color:' + catColor(next.category) + '">' + esc(next.category) + '</div>' : '') +
       '<div class="ne-when">' + when + ' — ' + prettyDate(next.date) + '</div>' +
       (next.note ? '<div class="ne-note">' + esc(next.note) + '</div>' : '');
-  } else {
-    ne.innerHTML = '<p class="muted">Niente in programma. Aggiungete qualcosa dal calendario.</p>';
-  }
+  } else ne.innerHTML = '<p class="muted">Niente in programma. Aggiungete qualcosa dal calendario.</p>';
 
   reasonsCache = await fetch('/api/reasons').then(r => r.json());
   showRandomReason();
@@ -118,6 +99,8 @@ async function loadHome() {
     img.src = '/media/' + photos[0].file;
     img.onclick = () => openLightbox('/media/' + photos[0].file, photos[0].caption);
   } else cardP.style.display = 'none';
+
+  renderCountdowns();
 }
 
 function breakdown(start, end) {
@@ -129,28 +112,63 @@ function breakdown(start, end) {
   const parts = [];
   if (y) parts.push(y + (y === 1 ? ' anno' : ' anni'));
   if (m) parts.push(m + (m === 1 ? ' mese' : ' mesi'));
-  if (d) parts.push(d + (d === 1 ? ' giorno' : ' giorni'));
+  if (d) parts.push(d + ' ' + dayWord(d));
   return parts.join(', ') || 'oggi';
 }
-
 function showRandomReason() {
   const el = document.getElementById('randomReason');
   if (!reasonsCache.length) { el.textContent = 'Aggiungine uno nella sezione Motivi.'; return; }
-  const r = reasonsCache[Math.floor(Math.random()*reasonsCache.length)];
-  el.textContent = '“' + r.text + '”';
+  el.textContent = '“' + reasonsCache[Math.floor(Math.random()*reasonsCache.length)].text + '”';
 }
 document.getElementById('shuffleReason').addEventListener('click', showRandomReason);
+
+// ---------- Conti alla rovescia ----------
+async function renderCountdowns() {
+  const list = await fetch('/api/countdowns').then(r => r.json());
+  const box = document.getElementById('countdownList');
+  const today = parseYmd(todayYmd());
+  const items = [];
+  if (settings.reunion) { const diff = daysBetween(today, parseYmd(settings.reunion)); if (diff >= 0) items.push({ special: true, title: 'Ci rivediamo', date: settings.reunion, diff }); }
+  list.forEach(c => items.push({ id: c.id, title: c.title, date: c.date, diff: daysBetween(today, parseYmd(c.date)) }));
+  items.sort((a, b) => {
+    const ap = a.diff < 0, bp = b.diff < 0;
+    if (ap !== bp) return ap ? 1 : -1;
+    return a.diff - b.diff;
+  });
+  if (!items.length) { box.innerHTML = '<p class="muted">Nessun conto alla rovescia. Aggiungine uno qui sotto.</p>'; return; }
+  box.innerHTML = items.map(it => {
+    const past = it.diff < 0;
+    const big = it.diff === 0 ? 'oggi' : (past ? Math.abs(it.diff) : it.diff);
+    const sub = it.diff === 0 ? 'è oggi!' : (past ? Math.abs(it.diff) + ' ' + dayWord(Math.abs(it.diff)) + ' fa' : 'mancano ' + it.diff + ' ' + dayWord(it.diff));
+    return '<div class="cd-card' + (past ? ' past' : '') + (it.special ? ' special' : '') + '"' + (it.id ? ' data-id="' + it.id + '"' : '') + '>' +
+      '<div class="cd-num">' + big + '</div>' +
+      '<div class="cd-info"><strong>' + esc(it.title) + '</strong><span>' + prettyDate(it.date) + ' • ' + sub + '</span></div>' +
+      (it.id ? '<button class="del-btn cd-del" title="Elimina">×</button>' : '') +
+    '</div>';
+  }).join('');
+  box.querySelectorAll('.cd-del').forEach(b => b.addEventListener('click', async (e) => {
+    const id = e.target.closest('.cd-card').dataset.id;
+    await fetch('/api/countdowns/' + id, { method: 'DELETE' }); renderCountdowns();
+  }));
+}
+document.getElementById('countdownForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const title = document.getElementById('cdTitle').value.trim();
+  const date = document.getElementById('cdDate').value;
+  if (!title || !date) return;
+  await fetch('/api/countdowns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, date }) });
+  document.getElementById('cdTitle').value = ''; document.getElementById('cdDate').value = '';
+  renderCountdowns();
+});
 
 // ============================================================
 //  CALENDARIO
 // ============================================================
 async function loadEvents() {
   events = await fetch('/api/events').then(r => r.json());
-  // parti sul mese del giorno selezionato
   const sd = parseYmd(selectedDate);
   current = new Date(sd.getFullYear(), sd.getMonth(), 1);
-  renderCalendar();
-  renderAgenda();
+  renderCalendar(); renderAgenda();
 }
 function eventsOn(dateStr) { return events.filter(e => e.date === dateStr).sort((a,b)=> ((a.category||'')<(b.category||'')?-1:1)); }
 
@@ -162,50 +180,32 @@ function renderCalendar() {
   let startDay = (new Date(y, m, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(y, m+1, 0).getDate();
   const today = todayYmd();
-
-  for (let i = 0; i < startDay; i++) {
-    const f = document.createElement('div'); f.className = 'cell filler'; grid.appendChild(f);
-  }
+  for (let i = 0; i < startDay; i++) { const f = document.createElement('div'); f.className = 'cell filler'; grid.appendChild(f); }
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = y + '-' + String(m+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     const list = eventsOn(dateStr);
     const cell = document.createElement('button');
-    cell.type = 'button';
-    cell.className = 'cell';
+    cell.type = 'button'; cell.className = 'cell';
     if (dateStr === today) cell.classList.add('today');
     if (dateStr === selectedDate) cell.classList.add('selected');
-
     const num = document.createElement('span'); num.className = 'daynum'; num.textContent = d; cell.appendChild(num);
-
     const dots = document.createElement('div'); dots.className = 'dots';
-    list.slice(0, 4).forEach(e => {
-      const dot = document.createElement('span'); dot.className = 'dot';
-      dot.style.background = catColor(e.category);
-      dots.appendChild(dot);
-    });
+    list.slice(0, 4).forEach(e => { const dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = catColor(e.category); dots.appendChild(dot); });
     cell.appendChild(dots);
-
     cell.addEventListener('click', () => selectDay(dateStr));
     grid.appendChild(cell);
   }
 }
-
 function selectDay(dateStr) {
-  selectedDate = dateStr;
-  renderCalendar();
-  renderAgenda();
+  selectedDate = dateStr; renderCalendar(); renderAgenda();
   if (isMobile()) document.getElementById('dayPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
-
 function renderAgenda() {
   const panel = document.getElementById('dayPanel');
   const d = parseYmd(selectedDate);
   const list = eventsOn(selectedDate);
   const isToday = selectedDate === todayYmd();
-
-  let html = '<div class="dp-head"><h3>' + WEEKDAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()] + '</h3>' +
-    (isToday ? '<span class="dp-today">oggi</span>' : '') + '</div>';
-
+  let html = '<div class="dp-head"><h3>' + WEEKDAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()] + '</h3>' + (isToday ? '<span class="dp-today">oggi</span>' : '') + '</div>';
   if (list.length) {
     html += '<div class="dp-events">' + list.map(e =>
       '<div class="event-item" data-id="' + e.id + '">' +
@@ -213,64 +213,99 @@ function renderAgenda() {
         '<div class="txt"><strong>' + esc(e.title) + '</strong>' +
           (e.category ? '<span class="ev-cat-tag" style="color:' + catColor(e.category) + '">' + esc(e.category) + '</span>' : '') +
           (e.note ? '<span class="ev-note">' + esc(e.note) + '</span>' : '') + '</div>' +
-        '<button class="del" title="Elimina">×</button></div>'
-    ).join('') + '</div>';
-  } else {
-    html += '<p class="muted dp-empty">Nessun evento in questo giorno.</p>';
-  }
-
+        '<button class="del" title="Elimina">×</button></div>').join('') + '</div>';
+  } else html += '<p class="muted dp-empty">Nessun evento in questo giorno.</p>';
   html += '<form class="event-form">' +
     '<input type="text" class="ev-title" placeholder="Aggiungi un evento…" required />' +
     '<div class="event-form-row">' +
-      '<select class="ev-cat"><option value="">categoria</option>' +
-        CATEGORIES.map(c => '<option value="' + esc(c.label) + '">' + esc(c.label) + '</option>').join('') +
-      '</select>' +
+      '<select class="ev-cat"><option value="">categoria</option>' + CATEGORIES.map(c => '<option value="' + esc(c.label) + '">' + esc(c.label) + '</option>').join('') + '</select>' +
       '<input type="text" class="ev-note-in" placeholder="nota (opzionale)" />' +
-    '</div>' +
-    '<button type="submit" class="btn">Aggiungi</button></form>';
-
+    '</div><button type="submit" class="btn">Aggiungi</button></form>';
   panel.innerHTML = html;
-
   panel.querySelectorAll('.del').forEach(btn => btn.addEventListener('click', async (e) => {
     const id = e.target.closest('.event-item').dataset.id;
     await fetch('/api/events/' + id, { method: 'DELETE' });
-    events = await fetch('/api/events').then(r => r.json());
-    renderCalendar(); renderAgenda();
+    events = await fetch('/api/events').then(r => r.json()); renderCalendar(); renderAgenda();
   }));
   panel.querySelector('.event-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const title = panel.querySelector('.ev-title').value.trim();
-    if (!title) return;
-    await fetch('/api/events', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: selectedDate, title, category: panel.querySelector('.ev-cat').value, note: panel.querySelector('.ev-note-in').value.trim() }),
-    });
-    events = await fetch('/api/events').then(r => r.json());
-    renderCalendar(); renderAgenda();
+    const title = panel.querySelector('.ev-title').value.trim(); if (!title) return;
+    await fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: selectedDate, title, category: panel.querySelector('.ev-cat').value, note: panel.querySelector('.ev-note-in').value.trim() }) });
+    events = await fetch('/api/events').then(r => r.json()); renderCalendar(); renderAgenda();
   });
 }
-
 document.getElementById('prevMonth').addEventListener('click', () => { current.setMonth(current.getMonth()-1); renderCalendar(); });
 document.getElementById('nextMonth').addEventListener('click', () => { current.setMonth(current.getMonth()+1); renderCalendar(); });
-
-// swipe tra i mesi
 (function () {
   const grid = document.getElementById('calGrid');
   let x0 = null, y0 = null;
   grid.addEventListener('touchstart', (e) => { x0 = e.changedTouches[0].clientX; y0 = e.changedTouches[0].clientY; }, { passive: true });
   grid.addEventListener('touchend', (e) => {
     if (x0 === null) return;
-    const dx = e.changedTouches[0].clientX - x0;
-    const dy = e.changedTouches[0].clientY - y0;
-    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      current.setMonth(current.getMonth() + (dx < 0 ? 1 : -1));
-      renderCalendar();
-    }
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) { current.setMonth(current.getMonth() + (dx < 0 ? 1 : -1)); renderCalendar(); }
     x0 = y0 = null;
   }, { passive: true });
 })();
 
-// ---------- FOTO ----------
+// ============================================================
+//  MAPPA
+// ============================================================
+let map = null, placesLayer = null, pickMarker = null, pickLatLng = null;
+function initMap() {
+  if (map) return;
+  map = L.map('map', { scrollWheelZoom: false }).setView([42.5, 12.5], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+  placesLayer = L.layerGroup().addTo(map);
+  map.on('click', (e) => {
+    pickLatLng = e.latlng;
+    const opts = { radius: 10, color: '#8e2c52', weight: 3, fillColor: '#cf4d73', fillOpacity: .5 };
+    if (pickMarker) pickMarker.setLatLng(e.latlng); else pickMarker = L.circleMarker(e.latlng, opts).addTo(map);
+    document.getElementById('placeCoord').textContent = 'punto scelto ✓';
+  });
+}
+async function loadPlaces() {
+  const places = await fetch('/api/places').then(r => r.json());
+  document.getElementById('placesEmpty').classList.toggle('hidden', places.length > 0);
+  initMap();
+  placesLayer.clearLayers();
+  const pts = [];
+  places.forEach(p => {
+    const mk = L.circleMarker([p.lat, p.lng], { radius: 9, color: '#fff', weight: 2, fillColor: PLACE_COLORS[p.kind] || '#cf4d73', fillOpacity: .95 });
+    mk.bindPopup('<b>' + esc(p.name) + '</b>' + (p.note ? '<br>' + esc(p.note) : ''));
+    mk.addTo(placesLayer); pts.push([p.lat, p.lng]);
+  });
+  if (pts.length) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
+  setTimeout(() => map.invalidateSize(), 120);
+
+  const box = document.getElementById('placeList');
+  box.innerHTML = places.map(p =>
+    '<div class="place-item" data-id="' + p.id + '" data-lat="' + p.lat + '" data-lng="' + p.lng + '">' +
+      '<span class="place-dot" style="background:' + (PLACE_COLORS[p.kind] || '#cf4d73') + '"></span>' +
+      '<div class="place-txt"><strong>' + esc(p.name) + '</strong>' + (p.note ? '<span>' + esc(p.note) + '</span>' : '') +
+        '<span class="place-kind">' + (p.kind === 'wish' ? 'da visitare' : 'ci siamo stati') + '</span></div>' +
+      '<button class="del-btn" title="Elimina">×</button></div>').join('');
+  box.querySelectorAll('.place-item').forEach(it => {
+    it.addEventListener('click', (e) => { if (e.target.classList.contains('del-btn')) return; map.setView([+it.dataset.lat, +it.dataset.lng], 14); document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    it.querySelector('.del-btn').addEventListener('click', async () => { await fetch('/api/places/' + it.dataset.id, { method: 'DELETE' }); loadPlaces(); });
+  });
+}
+document.getElementById('placeForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('placeName').value.trim();
+  if (!name) return;
+  if (!pickLatLng) { document.getElementById('placeCoord').textContent = 'tocca prima un punto sulla mappa'; return; }
+  await fetch('/api/places', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, note: document.getElementById('placeNote').value.trim(), kind: document.getElementById('placeKind').value, lat: pickLatLng.lat, lng: pickLatLng.lng }) });
+  document.getElementById('placeName').value = ''; document.getElementById('placeNote').value = '';
+  if (pickMarker) { map.removeLayer(pickMarker); pickMarker = null; } pickLatLng = null;
+  document.getElementById('placeCoord').textContent = 'nessun punto scelto';
+  loadPlaces();
+});
+
+// ============================================================
+//  FOTO
+// ============================================================
 async function loadPhotos() {
   const photos = await fetch('/api/photos').then(r => r.json());
   const gallery = document.getElementById('gallery');
@@ -282,16 +317,10 @@ async function loadPhotos() {
     img.src = '/media/' + p.file; img.alt = p.caption || 'foto'; img.loading = 'lazy';
     img.addEventListener('click', () => openLightbox('/media/' + p.file, p.caption));
     fig.appendChild(img);
-    if (p.caption || p.date) {
-      const cap = document.createElement('figcaption');
-      cap.innerHTML = (p.date ? '<span class="cap-date">' + esc(prettyDate(p.date)) + '</span>' : '') + (p.caption ? esc(p.caption) : '');
-      fig.appendChild(cap);
-    }
-    const del = document.createElement('button');
-    del.className = 'del-photo'; del.title = 'Elimina'; del.textContent = '×';
+    if (p.caption || p.date) { const cap = document.createElement('figcaption'); cap.innerHTML = (p.date ? '<span class="cap-date">' + esc(prettyDate(p.date)) + '</span>' : '') + (p.caption ? esc(p.caption) : ''); fig.appendChild(cap); }
+    const del = document.createElement('button'); del.className = 'del-photo'; del.title = 'Elimina'; del.textContent = '×';
     del.addEventListener('click', async () => { await fetch('/api/photos/' + p.id, { method: 'DELETE' }); loadPhotos(); });
-    fig.appendChild(del);
-    gallery.appendChild(fig);
+    fig.appendChild(del); gallery.appendChild(fig);
   });
 }
 document.getElementById('photoInput').addEventListener('change', async (e) => {
@@ -302,43 +331,35 @@ document.getElementById('photoInput').addEventListener('change', async (e) => {
   fd.append('caption', document.getElementById('caption').value.trim());
   fd.append('date', document.getElementById('photoDate').value);
   const res = await fetch('/api/photos', { method: 'POST', body: fd });
-  if (res.ok) {
-    status.textContent = 'Caricata';
-    document.getElementById('caption').value = ''; document.getElementById('photoDate').value = ''; e.target.value = '';
-    loadPhotos(); setTimeout(() => status.textContent = '', 2000);
-  } else {
-    const d = await res.json().catch(() => ({})); status.textContent = d.error || 'Qualcosa è andato storto.';
-  }
+  if (res.ok) { status.textContent = 'Caricata'; document.getElementById('caption').value = ''; document.getElementById('photoDate').value = ''; e.target.value = ''; loadPhotos(); setTimeout(() => status.textContent = '', 2000); }
+  else { const d = await res.json().catch(() => ({})); status.textContent = d.error || 'Qualcosa è andato storto.'; }
 });
 
-// ---------- BACHECA ----------
+// ============================================================
+//  BACHECA
+// ============================================================
 async function loadNotes() {
   const notes = await fetch('/api/notes').then(r => r.json());
   const wall = document.getElementById('notesWall');
   document.getElementById('notesEmpty').classList.toggle('hidden', notes.length > 0);
   wall.innerHTML = notes.map(n => {
     const when = new Date(n.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
-    return '<div class="note" data-id="' + n.id + '">' +
-      '<button class="del-btn" title="Elimina">×</button>' +
+    return '<div class="note" data-id="' + n.id + '"><button class="del-btn" title="Elimina">×</button>' +
       '<div class="note-text">' + esc(n.text) + '</div>' +
-      '<div class="note-meta"><span class="who">' + (n.author ? esc(n.author) : '·') + '</span><span>' + when + '</span></div>' +
-    '</div>';
+      '<div class="note-meta"><span class="who">' + (n.author ? esc(n.author) : '·') + '</span><span>' + when + '</span></div></div>';
   }).join('');
-  wall.querySelectorAll('.del-btn').forEach(b => b.addEventListener('click', async (e) => {
-    const id = e.target.closest('.note').dataset.id;
-    await fetch('/api/notes/' + id, { method: 'DELETE' }); loadNotes();
-  }));
+  wall.querySelectorAll('.del-btn').forEach(b => b.addEventListener('click', async (e) => { const id = e.target.closest('.note').dataset.id; await fetch('/api/notes/' + id, { method: 'DELETE' }); loadNotes(); }));
 }
 document.getElementById('noteForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const text = document.getElementById('noteText').value.trim(); if (!text) return;
-  const author = document.getElementById('noteAuthor').value.trim();
-  await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, author }) });
-  document.getElementById('noteText').value = '';
-  loadNotes();
+  await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, author: document.getElementById('noteAuthor').value.trim() }) });
+  document.getElementById('noteText').value = ''; loadNotes();
 });
 
-// ---------- DESIDERI ----------
+// ============================================================
+//  DESIDERI
+// ============================================================
 async function loadWishes() {
   const wishes = await fetch('/api/wishes').then(r => r.json());
   const ul = document.getElementById('wishList');
@@ -346,23 +367,11 @@ async function loadWishes() {
   const done = wishes.filter(w => w.done).length;
   document.getElementById('wishBar').style.width = wishes.length ? (done/wishes.length*100) + '%' : '0%';
   document.getElementById('wishCount').textContent = wishes.length ? done + ' / ' + wishes.length + ' fatti' : '';
-  ul.innerHTML = wishes.map(w =>
-    '<li class="wish-item ' + (w.done ? 'done' : '') + '" data-id="' + w.id + '">' +
-      '<button class="check">' + (w.done ? '✓' : '') + '</button>' +
-      '<span class="wtext">' + esc(w.text) + '</span>' +
-      '<button class="del-btn" title="Elimina">×</button>' +
-    '</li>'
-  ).join('');
+  ul.innerHTML = wishes.map(w => '<li class="wish-item ' + (w.done ? 'done' : '') + '" data-id="' + w.id + '"><button class="check">' + (w.done ? '✓' : '') + '</button><span class="wtext">' + esc(w.text) + '</span><button class="del-btn" title="Elimina">×</button></li>').join('');
   ul.querySelectorAll('.wish-item').forEach(li => {
     const id = li.dataset.id;
-    li.querySelector('.check').addEventListener('click', async () => {
-      const done = !li.classList.contains('done');
-      await fetch('/api/wishes/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ done }) });
-      loadWishes();
-    });
-    li.querySelector('.del-btn').addEventListener('click', async () => {
-      await fetch('/api/wishes/' + id, { method: 'DELETE' }); loadWishes();
-    });
+    li.querySelector('.check').addEventListener('click', async () => { const done = !li.classList.contains('done'); await fetch('/api/wishes/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ done }) }); loadWishes(); });
+    li.querySelector('.del-btn').addEventListener('click', async () => { await fetch('/api/wishes/' + id, { method: 'DELETE' }); loadWishes(); });
   });
 }
 document.getElementById('wishForm').addEventListener('submit', async (e) => {
@@ -372,20 +381,73 @@ document.getElementById('wishForm').addEventListener('submit', async (e) => {
   document.getElementById('wishText').value = ''; loadWishes();
 });
 
-// ---------- MOTIVI ----------
+// ============================================================
+//  IDEE (barattolo)
+// ============================================================
+async function loadIdeas() {
+  ideasCache = await fetch('/api/ideas').then(r => r.json());
+  document.getElementById('ideasEmpty').classList.toggle('hidden', ideasCache.length > 0);
+  const box = document.getElementById('ideaList');
+  box.innerHTML = ideasCache.map(i => '<div class="idea-item" data-id="' + i.id + '"><span>' + esc(i.text) + '</span><button class="del-btn" title="Elimina">×</button></div>').join('');
+  box.querySelectorAll('.del-btn').forEach(b => b.addEventListener('click', async (e) => { const id = e.target.closest('.idea-item').dataset.id; await fetch('/api/ideas/' + id, { method: 'DELETE' }); loadIdeas(); }));
+}
+document.getElementById('pickIdea').addEventListener('click', () => {
+  const el = document.getElementById('ideaPick');
+  if (!ideasCache.length) { el.textContent = 'Il barattolo è vuoto — aggiungi qualche idea.'; return; }
+  el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+  el.textContent = '“' + ideasCache[Math.floor(Math.random()*ideasCache.length)].text + '”';
+});
+document.getElementById('ideaForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = document.getElementById('ideaText').value.trim(); if (!text) return;
+  await fetch('/api/ideas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+  document.getElementById('ideaText').value = ''; loadIdeas();
+});
+
+// ============================================================
+//  CAPSULE DEL TEMPO
+// ============================================================
+async function loadCapsules() {
+  const caps = await fetch('/api/capsules').then(r => r.json());
+  document.getElementById('capsulesEmpty').classList.toggle('hidden', caps.length > 0);
+  const box = document.getElementById('capsuleList');
+  const today = todayYmd();
+  box.innerHTML = caps.map(c => {
+    if (c.unlocked) {
+      return '<div class="capsule open" data-id="' + c.id + '">' +
+        '<div class="cap-topline"><span class="cap-badge open">aperta</span><strong>' + esc(c.title) + '</strong><button class="del-btn" title="Elimina">×</button></div>' +
+        '<div class="cap-body">' + esc(c.text) + '</div>' +
+        '<div class="cap-foot">' + (c.author ? esc(c.author) + ' • ' : '') + 'aperta il ' + prettyDate(c.openDate) + '</div></div>';
+    }
+    const diff = daysBetween(parseYmd(today), parseYmd(c.openDate));
+    return '<div class="capsule locked" data-id="' + c.id + '">' +
+      '<div class="cap-topline"><span class="cap-badge">sigillata</span><strong>' + esc(c.title) + '</strong><button class="del-btn" title="Elimina">×</button></div>' +
+      '<div class="cap-locked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>' +
+      '<span>si apre il <b>' + prettyDate(c.openDate) + '</b><br>tra ' + diff + ' ' + dayWord(diff) + '</span></div></div>';
+  }).join('');
+  box.querySelectorAll('.del-btn').forEach(b => b.addEventListener('click', async (e) => { const id = e.target.closest('.capsule').dataset.id; await fetch('/api/capsules/' + id, { method: 'DELETE' }); loadCapsules(); }));
+}
+document.getElementById('capsuleForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const title = document.getElementById('capTitle').value.trim();
+  const text = document.getElementById('capText').value.trim();
+  const openDate = document.getElementById('capDate').value;
+  if (!title || !text || !openDate) return;
+  await fetch('/api/capsules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, text, openDate, author: document.getElementById('capAuthor').value.trim() }) });
+  document.getElementById('capTitle').value = ''; document.getElementById('capText').value = ''; document.getElementById('capDate').value = ''; document.getElementById('capAuthor').value = '';
+  loadCapsules();
+});
+
+// ============================================================
+//  MOTIVI
+// ============================================================
 async function loadReasons() {
   const reasons = await fetch('/api/reasons').then(r => r.json());
   reasonsCache = reasons;
   const box = document.getElementById('reasonList');
   document.getElementById('reasonsEmpty').classList.toggle('hidden', reasons.length > 0);
-  box.innerHTML = reasons.map(r =>
-    '<div class="reason-chip" data-id="' + r.id + '">' + esc(r.text) +
-      '<button class="del-btn" title="Elimina">×</button></div>'
-  ).join('');
-  box.querySelectorAll('.del-btn').forEach(b => b.addEventListener('click', async (e) => {
-    const id = e.target.closest('.reason-chip').dataset.id;
-    await fetch('/api/reasons/' + id, { method: 'DELETE' }); loadReasons();
-  }));
+  box.innerHTML = reasons.map(r => '<div class="reason-chip" data-id="' + r.id + '">' + esc(r.text) + '<button class="del-btn" title="Elimina">×</button></div>').join('');
+  box.querySelectorAll('.del-btn').forEach(b => b.addEventListener('click', async (e) => { const id = e.target.closest('.reason-chip').dataset.id; await fetch('/api/reasons/' + id, { method: 'DELETE' }); loadReasons(); }));
 }
 document.getElementById('reasonForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -395,15 +457,8 @@ document.getElementById('reasonForm').addEventListener('submit', async (e) => {
 });
 
 // ---------- Lightbox ----------
-function openLightbox(src, caption) {
-  document.getElementById('lightboxImg').src = src;
-  document.getElementById('lightboxCap').textContent = caption || '';
-  document.getElementById('lightbox').classList.remove('hidden');
-}
-function closeLightbox() {
-  document.getElementById('lightbox').classList.add('hidden');
-  document.getElementById('lightboxImg').src = '';
-}
+function openLightbox(src, caption) { document.getElementById('lightboxImg').src = src; document.getElementById('lightboxCap').textContent = caption || ''; document.getElementById('lightbox').classList.remove('hidden'); }
+function closeLightbox() { document.getElementById('lightbox').classList.add('hidden'); document.getElementById('lightboxImg').src = ''; }
 document.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
 document.getElementById('lightbox').addEventListener('click', (e) => { if (e.target.id === 'lightbox') closeLightbox(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeLightbox(); closeSettings(); } });
@@ -422,17 +477,9 @@ function closeSettings() { settingsModal.classList.add('hidden'); }
 document.querySelector('.modal-close').addEventListener('click', closeSettings);
 settingsModal.addEventListener('click', (e) => { if (e.target.id === 'settingsModal') closeSettings(); });
 document.getElementById('saveSettings').addEventListener('click', async () => {
-  const body = {
-    name1: document.getElementById('setName1').value.trim(),
-    name2: document.getElementById('setName2').value.trim(),
-    anniversary: document.getElementById('setAnniversary').value,
-    reunion: document.getElementById('setReunion').value,
-  };
+  const body = { name1: document.getElementById('setName1').value.trim(), name2: document.getElementById('setName2').value.trim(), anniversary: document.getElementById('setAnniversary').value, reunion: document.getElementById('setReunion').value };
   const res = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (res.ok) {
-    document.getElementById('settingsStatus').textContent = 'Salvato';
-    setTimeout(() => { document.getElementById('settingsStatus').textContent = ''; closeSettings(); loadHome(); }, 800);
-  }
+  if (res.ok) { document.getElementById('settingsStatus').textContent = 'Salvato'; setTimeout(() => { document.getElementById('settingsStatus').textContent = ''; closeSettings(); loadHome(); }, 800); }
 });
 
 // avvio

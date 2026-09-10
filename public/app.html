@@ -8,7 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=7" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
+  <link rel="stylesheet" href="/style.css?v=8" />
 </head>
 <body>
   <header class="topbar">
@@ -25,21 +27,37 @@
         <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18"/><path d="M8 2.5v4"/><path d="M16 2.5v4"/></svg>
         <span class="tab-label">Calendario</span>
       </button>
+      <button class="tab" data-view="mappa">
+        <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        <span class="tab-label">Mappa</span>
+      </button>
       <button class="tab" data-view="photos">
         <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9" r="1.6"/><path d="m3.5 18 5-5 4 4 3-3 5 5"/></svg>
         <span class="tab-label">Foto</span>
       </button>
-      <button class="tab" data-view="notes">
+      <button class="tab tab-secondary" data-view="notes">
         <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 4H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h9l4 4v-4h3a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1Z"/><path d="M7.5 9h9"/><path d="M7.5 13h5"/></svg>
         <span class="tab-label">Bacheca</span>
       </button>
-      <button class="tab" data-view="wishes">
+      <button class="tab tab-secondary" data-view="wishes">
         <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8L3.5 9.2l5.9-.9L12 3Z"/></svg>
         <span class="tab-label">Desideri</span>
       </button>
-      <button class="tab" data-view="reasons">
+      <button class="tab tab-secondary" data-view="idee">
+        <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.2 1 2.5h6c0-1.3.3-1.8 1-2.5A6 6 0 0 0 12 3Z"/></svg>
+        <span class="tab-label">Idee</span>
+      </button>
+      <button class="tab tab-secondary" data-view="capsule">
+        <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+        <span class="tab-label">Capsule</span>
+      </button>
+      <button class="tab tab-secondary" data-view="reasons">
         <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-9.3-9A4.8 4.8 0 0 1 12 6.2 4.8 4.8 0 0 1 21.3 11C19 15.6 12 20 12 20Z"/></svg>
         <span class="tab-label">Motivi</span>
+      </button>
+      <button class="tab tab-more" data-view="altro">
+        <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+        <span class="tab-label">Altro</span>
       </button>
     </nav>
     <button id="settingsBtn" class="icon-btn" title="Impostazioni" aria-label="Impostazioni">
@@ -58,27 +76,29 @@
     </div>
 
     <div class="home-grid">
-      <article class="card" id="cardReunion" style="display:none">
-        <h3>Ci rivediamo</h3>
-        <div class="big-num" id="reunionDays">—</div>
-        <p class="muted" id="reunionDate"></p>
-      </article>
-
       <article class="card" id="cardNext">
         <h3>Prossimo momento</h3>
         <div id="nextEvent" class="next-event"></div>
       </article>
-
       <article class="card reason-card">
         <h3>Un motivo a caso</h3>
         <p id="randomReason" class="reason-text">—</p>
         <button id="shuffleReason" class="ghost-btn">Un altro</button>
       </article>
-
       <article class="card" id="cardLastPhoto" style="display:none">
         <h3>Ultimo ricordo</h3>
         <img id="lastPhoto" class="last-photo" alt="ultima foto" />
       </article>
+    </div>
+
+    <div class="cd-block">
+      <h2 class="block-title">Conti alla rovescia</h2>
+      <div id="countdownList" class="cd-list"></div>
+      <form id="countdownForm" class="inline-form">
+        <input id="cdTitle" class="text-input" type="text" placeholder="es. Prossimo viaggio" required />
+        <input id="cdDate" class="text-input date" type="date" required />
+        <button type="submit" class="btn">Aggiungi</button>
+      </form>
     </div>
   </section>
 
@@ -98,14 +118,32 @@
     <div id="dayPanel" class="day-panel"></div>
   </section>
 
+  <!-- MAPPA -->
+  <section id="view-mappa" class="view hidden">
+    <div class="section-head"><h2>I nostri posti</h2></div>
+    <div id="map" class="map"></div>
+    <p class="map-hint">Tocca un punto sulla mappa, poi compila e salva.</p>
+    <form id="placeForm" class="place-form">
+      <input id="placeName" class="text-input" type="text" placeholder="nome del posto" required />
+      <input id="placeNote" class="text-input" type="text" placeholder="nota (opzionale)" />
+      <div class="place-row">
+        <select id="placeKind" class="text-input">
+          <option value="been">Ci siamo stati</option>
+          <option value="wish">Vogliamo andarci</option>
+        </select>
+        <span id="placeCoord" class="coord">nessun punto scelto</span>
+      </div>
+      <button type="submit" class="btn">Salva posto</button>
+    </form>
+    <div id="placeList" class="place-list"></div>
+    <p id="placesEmpty" class="empty hidden">Ancora nessun posto. Segnate il primo.</p>
+  </section>
+
   <!-- FOTO -->
   <section id="view-photos" class="view hidden">
     <div class="section-head">
       <h2>I nostri momenti</h2>
-      <label class="btn">
-        Aggiungi foto
-        <input id="photoInput" type="file" accept="image/*" multiple hidden />
-      </label>
+      <label class="btn">Aggiungi foto<input id="photoInput" type="file" accept="image/*" multiple hidden /></label>
     </div>
     <div class="photo-meta">
       <input id="caption" class="text-input" type="text" placeholder="una didascalia (opzionale)" />
@@ -133,16 +171,45 @@
   <!-- DESIDERI -->
   <section id="view-wishes" class="view hidden">
     <div class="section-head"><h2>Cose da fare insieme</h2></div>
-    <div class="wish-progress">
-      <div class="bar"><div id="wishBar" class="bar-fill"></div></div>
-      <span id="wishCount" class="muted"></span>
-    </div>
+    <div class="wish-progress"><div class="bar"><div id="wishBar" class="bar-fill"></div></div><span id="wishCount" class="muted"></span></div>
     <form id="wishForm" class="inline-form">
       <input id="wishText" class="text-input" type="text" placeholder="un posto da vedere, una cosa da provare…" required />
       <button type="submit" class="btn">Aggiungi</button>
     </form>
     <ul id="wishList" class="wish-list"></ul>
     <p id="wishesEmpty" class="empty hidden">Nessun desiderio ancora. Sognate in grande.</p>
+  </section>
+
+  <!-- IDEE -->
+  <section id="view-idee" class="view hidden">
+    <div class="section-head"><h2>Barattolo delle idee</h2></div>
+    <div class="jar">
+      <p id="ideaPick" class="jar-pick">Un'idea per quando non sapete cosa fare.</p>
+      <button id="pickIdea" class="btn">Pesca un'idea</button>
+    </div>
+    <form id="ideaForm" class="inline-form">
+      <input id="ideaText" class="text-input" type="text" placeholder="aggiungi un'idea…" required />
+      <button type="submit" class="btn">Aggiungi</button>
+    </form>
+    <div id="ideaList" class="idea-list"></div>
+    <p id="ideasEmpty" class="empty hidden">Il barattolo è vuoto. Riempitelo di idee.</p>
+  </section>
+
+  <!-- CAPSULE -->
+  <section id="view-capsule" class="view hidden">
+    <div class="section-head"><h2>Capsula del tempo</h2></div>
+    <p class="cap-intro muted">Scrivi un messaggio che resterà sigillato fino alla data scelta. Non sarà leggibile — da nessuno dei due — prima di allora.</p>
+    <form id="capsuleForm" class="capsule-form">
+      <input id="capTitle" class="text-input" type="text" placeholder="titolo (es. Per il nostro primo anno)" required />
+      <textarea id="capText" placeholder="il messaggio segreto…" required></textarea>
+      <div class="cap-row">
+        <input id="capDate" class="text-input date" type="date" required title="si apre il" />
+        <input id="capAuthor" class="text-input" type="text" placeholder="firma (opzionale)" />
+      </div>
+      <button type="submit" class="btn">Sigilla</button>
+    </form>
+    <div id="capsuleList" class="capsule-list"></div>
+    <p id="capsulesEmpty" class="empty hidden">Nessuna capsula ancora. Scrivetene una per il futuro.</p>
   </section>
 
   <!-- MOTIVI -->
@@ -156,13 +223,22 @@
     <p id="reasonsEmpty" class="empty hidden">Ancora nessun motivo scritto.</p>
   </section>
 
+  <!-- ALTRO (menu) -->
+  <section id="view-altro" class="view hidden">
+    <div class="section-head"><h2>Altro</h2></div>
+    <div class="menu-grid">
+      <button class="menu-card" data-target="notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h9l4 4v-4h3a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1Z"/><path d="M7.5 9h9"/><path d="M7.5 13h5"/></svg><strong>Bacheca</strong><span>bigliettini e pensieri</span></button>
+      <button class="menu-card" data-target="wishes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8L3.5 9.2l5.9-.9L12 3Z"/></svg><strong>Desideri</strong><span>cose da fare insieme</span></button>
+      <button class="menu-card" data-target="idee"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.2 1 2.5h6c0-1.3.3-1.8 1-2.5A6 6 0 0 0 12 3Z"/></svg><strong>Idee</strong><span>il barattolo</span></button>
+      <button class="menu-card" data-target="capsule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><strong>Capsule</strong><span>messaggi nel futuro</span></button>
+      <button class="menu-card" data-target="reasons"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.3-9A4.8 4.8 0 0 1 12 6.2 4.8 4.8 0 0 1 21.3 11C19 15.6 12 20 12 20Z"/></svg><strong>Motivi</strong><span>perché ti amo</span></button>
+    </div>
+  </section>
+
   <!-- Lightbox -->
   <div id="lightbox" class="lightbox hidden">
     <button class="lightbox-close" aria-label="Chiudi">×</button>
-    <figure>
-      <img id="lightboxImg" alt="" />
-      <figcaption id="lightboxCap"></figcaption>
-    </figure>
+    <figure><img id="lightboxImg" alt="" /><figcaption id="lightboxCap"></figcaption></figure>
   </div>
 
   <!-- Impostazioni -->
@@ -170,26 +246,14 @@
     <div class="modal-box">
       <button class="modal-close" aria-label="Chiudi">×</button>
       <h2>Impostazioni</h2>
-      <label class="field">
-        <span>I vostri nomi</span>
-        <div class="two">
-          <input id="setName1" class="text-input" type="text" placeholder="nome 1" />
-          <input id="setName2" class="text-input" type="text" placeholder="nome 2" />
-        </div>
-      </label>
-      <label class="field">
-        <span>Da quando state insieme</span>
-        <input id="setAnniversary" class="text-input" type="date" />
-      </label>
-      <label class="field">
-        <span>Data in cui vi rivedete (opzionale)</span>
-        <input id="setReunion" class="text-input" type="date" />
-      </label>
+      <label class="field"><span>I vostri nomi</span><div class="two"><input id="setName1" class="text-input" type="text" placeholder="nome 1" /><input id="setName2" class="text-input" type="text" placeholder="nome 2" /></div></label>
+      <label class="field"><span>Da quando state insieme</span><input id="setAnniversary" class="text-input" type="date" /></label>
+      <label class="field"><span>Data in cui vi rivedete (opzionale)</span><input id="setReunion" class="text-input" type="date" /></label>
       <button id="saveSettings" class="btn wide">Salva</button>
       <p id="settingsStatus" class="status"></p>
     </div>
   </div>
 
-  <script src="/app.js?v=7"></script>
+  <script src="/app.js?v=8"></script>
 </body>
 </html>
