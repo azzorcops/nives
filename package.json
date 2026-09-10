@@ -1,0 +1,18 @@
+{
+  "name": "noidue",
+  "version": "2.0.0",
+  "description": "Uno spazio privato per due: home con contatore, calendario, foto, bacheca, lista dei desideri e motivi. Protetto da password.",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "multer": "^1.4.5-lts.1"
+  }
+}

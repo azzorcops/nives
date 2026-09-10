@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#fbeef0" />
+  <title>Entra</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="login-body">
+  <div class="hearts-bg" aria-hidden="true"></div>
+  <main class="gate">
+    <div class="gate-heart" aria-hidden="true">♥</div>
+    <h1 class="gate-title" id="coupleName">Noi due</h1>
+    <p class="gate-sub">Il nostro angolo. Entra con la parola segreta.</p>
+    <form id="loginForm" class="gate-form" autocomplete="off">
+      <input id="password" type="password" name="password" placeholder="parola segreta" aria-label="Password" required />
+      <button type="submit">Entra</button>
+    </form>
+    <p id="error" class="gate-error" role="alert"></p>
+  </main>
+
+  <script>
+    fetch('/api/config').then(r => r.json()).then(c => {
+      if (c.coupleName) document.getElementById('coupleName').textContent = c.coupleName;
+    }).catch(() => {});
+
+    // cuoricini fluttuanti
+    (function () {
+      const bg = document.querySelector('.hearts-bg');
+      for (let i = 0; i < 14; i++) {
+        const h = document.createElement('span');
+        h.className = 'floaty';
+        h.textContent = '♥';
+        h.style.left = Math.random() * 100 + 'vw';
+        h.style.animationDuration = (7 + Math.random() * 8) + 's';
+        h.style.animationDelay = (Math.random() * 8) + 's';
+        h.style.fontSize = (10 + Math.random() * 22) + 'px';
+        h.style.opacity = (0.15 + Math.random() * 0.3).toFixed(2);
+        bg.appendChild(h);
+      }
+    })();
+
+    const form = document.getElementById('loginForm');
+    const errEl = document.getElementById('error');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errEl.textContent = '';
+      const password = document.getElementById('password').value;
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (res.ok) {
+        window.location.href = '/';
+      } else {
+        const d = await res.json().catch(() => ({}));
+        errEl.textContent = d.error || 'Non ha funzionato, riprova.';
+        form.classList.remove('shake'); void form.offsetWidth; form.classList.add('shake');
+      }
+    });
+  </script>
+</body>
+</html>
